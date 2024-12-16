@@ -1,0 +1,10 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "openAutoComplete.apiBase": "https://api.mistral.ai/"
+  }
+}
