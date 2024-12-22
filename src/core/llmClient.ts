@@ -77,7 +77,7 @@ async function* parseMessages(
 
 async function* messagesToCharStream(
   messages: AsyncGenerator<MistralStreamMessage>
-) {
+): AsyncGenerator<string> {
   for await (const message of messages) {
     for (const ch of message.choices[0].delta.content) {
       yield ch;
@@ -100,10 +100,23 @@ interface MistralStreamMessage {
   }[];
 }
 
+interface MistralFimRequest {
+  model: "codestral-2405" | "codestral-latest";
+  temperature?: number;
+  top_p?: number;
+  max_tokens?: number;
+  stream: boolean;
+  stop: string | string[];
+  random_seed?: number;
+  prompt: string;
+  suffix?: string;
+  min_tokens?: number;
+}
+
 export class LlmClient {
   constructor(private config: ConfigContainer) {}
 
-  async createCompletion() {
+  async getCompletion(prefix: string, suffix: string) {
     console.log("sending request");
     const config = this.config.config;
     // Fetch the original image
@@ -121,10 +134,10 @@ export class LlmClient {
       body: JSON.stringify({
         stream: true,
         model: "codestral-latest",
-        prompt:
-          '// test.js\n// print "Hello World I love You" using console.log()\n',
-        suffix: "exit(0);",
-      }),
+        prompt: prefix,
+        suffix,
+        max_tokens: 64,
+      } as MistralFimRequest),
     });
     // Retrieve its body as ReadableStream
 
