@@ -43,6 +43,13 @@
       "type": "npm",
       "script": "watch-tests",
       "problemMatcher": []
+    },
+    {
+      "type": "npm",
+      "script": "package",
+      "problemMatcher": [],
+      "label": "npm: package",
+      "detail": "vsce package"
     }
   ]
 }

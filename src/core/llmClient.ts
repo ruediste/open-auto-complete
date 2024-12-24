@@ -1,28 +1,23 @@
+import { OutputChannel } from "vscode";
+import { CancellationToken } from "./completionManager";
 import { ConfigContainer } from "./configuration";
-
-class StreamControl {
-  private _cancelled = false;
-  get cancelled(): boolean {
-    return this._cancelled;
-  }
-
-  cancel() {
-    this._cancelled = true;
-  }
-}
 
 async function* readLines(
   reader: ReadableStreamDefaultReader,
-  ctrl: StreamControl
+  token: CancellationToken
 ) {
   let buffer = "";
   const decoder = new TextDecoder();
 
-  while (!ctrl.cancelled) {
+  while (!token.isCancellationRequested) {
     const part = await reader.read();
     if (part.done) {
       break;
     }
+    if (token.isCancellationRequested) {
+      break;
+    }
+
     if (part.value) {
       buffer += decoder.decode(part.value);
 
@@ -32,17 +27,20 @@ async function* readLines(
           break;
         }
         yield buffer.substring(0, idx);
-        if (ctrl.cancelled) {
-          return;
+        if (token.isCancellationRequested) {
+          break;
         }
         buffer = buffer.substring(idx + 1);
       }
     }
   }
 
-  if (!ctrl.cancelled) {
+  if (!token.isCancellationRequested) {
     yield buffer;
   }
+
+  // always cancel the reader to make sure resources are released
+  await reader.cancel();
 }
 
 async function* splitToMessageStrings(reader: AsyncGenerator<string>) {
@@ -60,14 +58,9 @@ async function* splitToMessageStrings(reader: AsyncGenerator<string>) {
   }
 }
 
-async function* parseMessages(
-  messages: AsyncGenerator<string>,
-  ctrl: StreamControl
-) {
+async function* parseMessages(messages: AsyncGenerator<string>) {
   for await (const messageStr of messages) {
     if (messageStr === "[DONE]") {
-      console.log("cancelling");
-      ctrl.cancel();
       break;
     }
     const message: MistralStreamMessage = JSON.parse(messageStr);
@@ -85,6 +78,18 @@ async function* messagesToCharStream(
   }
 }
 
+async function* tap<T>(
+  input: AsyncGenerator<T>,
+  action: (item: T) => void,
+  end?: () => void
+): AsyncGenerator<T> {
+  for await (const item of input) {
+    action(item);
+    yield item;
+  }
+  end?.();
+}
+
 interface MistralStreamMessage {
   choices: {
     delta: {
@@ -98,6 +103,11 @@ interface MistralStreamMessage {
       | "tool_calls"
       | null;
   }[];
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 interface MistralFimRequest {
@@ -114,16 +124,32 @@ interface MistralFimRequest {
 }
 
 export class LlmClient {
-  constructor(private config: ConfigContainer) {}
+  constructor(
+    private config: ConfigContainer,
+    private channel: OutputChannel
+  ) {}
 
-  async getCompletion(prefix: string, suffix: string) {
-    console.log("sending request");
+  async getCompletion(
+    requestDescription: string,
+    prefix: string,
+    suffix: string,
+    token: CancellationToken
+  ): Promise<AsyncGenerator<string>> {
+    this.channel.append(
+      `\n=========================================
+Sending ${requestDescription}
+${prefix}<FIM>${suffix}
+===
+`
+    );
+
     const config = this.config.config;
-    // Fetch the original image
     let apiBase = config.apiBase;
     if (apiBase.endsWith("/")) {
       apiBase = apiBase.substring(0, apiBase.length - 1);
     }
+
+    const startTime = Date.now();
 
     const response = await fetch(apiBase + "/v1/fim/completions", {
       method: "POST",
@@ -139,30 +165,46 @@ export class LlmClient {
         max_tokens: 64,
       } as MistralFimRequest),
     });
-    // Retrieve its body as ReadableStream
+    if (response.status !== 200) {
+      throw new Error(
+        `Request Failed: ${response.status} ${
+          response.statusText
+        }\n${await response.text()}`
+      );
+    }
 
+    // Retrieve body as ReadableStream
     const reader = response.body!.getReader();
-    const ctrl = new StreamControl();
 
-    const lines = readLines(reader, ctrl);
-    const messages = parseMessages(splitToMessageStrings(lines), ctrl);
+    const lines = readLines(reader, token);
+    let usage: MistralStreamMessage["usage"] = undefined;
+    const messages = tap(parseMessages(splitToMessageStrings(lines)), (msg) => {
+      if (msg.usage) {
+        usage = msg.usage;
+      }
+    });
     const chars = messagesToCharStream(messages);
-    return chars;
 
-    // let count = 0;
-    // let all = "";
-    // for await (const char of chars) {
-    //   console.log(char, char.charCodeAt(0));
-    //   all += char;
-    //   count++;
-    //   if (count > 200) {
-    //     console.log("cancel");
-    //     ctrl.cancel();
-    //   }
-    // }
-
-    // await reader.cancel();
-
-    // console.log("done", all);
+    let firstChar = true;
+    return tap(
+      chars,
+      (str) => {
+        if (firstChar) {
+          firstChar = false;
+          this.channel.append(
+            `Time to first Char: ${Date.now() - startTime}ms\n`
+          );
+        }
+        return this.channel.append(str);
+      },
+      () => {
+        this.channel.appendLine("");
+        if (usage) {
+          this.channel.appendLine(
+            `Usage: prompt tokens: ${usage.prompt_tokens} completion_tokens: ${usage.completion_tokens} total tokens: ${usage.total_tokens}`
+          );
+        }
+      }
+    );
   }
 }

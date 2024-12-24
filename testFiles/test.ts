@@ -1,5 +1,7 @@
+import { appendFile } from "fs";
+
 class foo(){
     // log foo
-    console.ab
+    console.log('foo');
 }
-asdfasdlj
+

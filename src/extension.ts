@@ -1,6 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
+import { CompletionFilterService } from "./core/completionFilterService";
 import { CompletionManager } from "./core/completionManager";
 import {
   ConfigContainer,
@@ -15,12 +16,13 @@ function readConfiguration() {
     apiBase: vsCodeConfig.get("apiBase")!,
     apiKey: vsCodeConfig.get("apiKey")!,
     logCompletionManager: vsCodeConfig.get("log.completionManager") ?? false,
+    logCompletionStop: vsCodeConfig.get("log.completionStop") ?? false,
+    prefixLength: vsCodeConfig.get("prefixLength")!,
+    suffixLength: vsCodeConfig.get("suffixLength")!,
+    matchLength: vsCodeConfig.get("matchLength")!,
+    searchLength: vsCodeConfig.get("searchLength")!,
   };
   return config;
-}
-
-async function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -46,9 +48,15 @@ export function activate(context: vscode.ExtensionContext) {
 
   const logManager = new LogManager(config, logChannel);
 
-  const client = new LlmClient(config);
+  const client = new LlmClient(config, llmChannel);
+  const completionFilterService = new CompletionFilterService(logManager);
 
-  const manager = new CompletionManager(config, client, logManager);
+  const manager = new CompletionManager(
+    config,
+    client,
+    completionFilterService,
+    logManager
+  );
 
   context.subscriptions.push(manager);
 
@@ -58,6 +66,80 @@ export function activate(context: vscode.ExtensionContext) {
       manager
     )
   );
+
+  const loadingSpinnerDecorationType =
+    vscode.window.createTextEditorDecorationType({
+      backgroundColor: "transparent",
+
+      gutterIconPath: context.asAbsolutePath("media/loadingSpinner.gif"),
+      gutterIconSize: "cover",
+    });
+  context.subscriptions.push(loadingSpinnerDecorationType);
+
+  const loadingSpinnerManager = new LoadingSpinnerManager(
+    () => {
+      const editor = vscode.window.activeTextEditor;
+      return editor?.setDecorations(loadingSpinnerDecorationType, [
+        new vscode.Range(editor.selection.end, editor.selection.end),
+      ]);
+    },
+    () =>
+      vscode.window.activeTextEditor?.setDecorations(
+        loadingSpinnerDecorationType,
+        []
+      )
+  );
+
+  manager.onCompletionInProgress.subscribe((loading) =>
+    loadingSpinnerManager.setLoading(loading)
+  );
 }
 
 export function deactivate() {}
+
+/** Manages the loading spinner. It is only shown after a delay, and
+ * is visible for a minimum amount of time */
+class LoadingSpinnerManager {
+  private timer?: NodeJS.Timeout;
+  private loading = false;
+  private spinnerShown = false;
+  private spinnerShownTime?: number;
+  constructor(
+    private showSpinner: () => void,
+    private hideSpinner: () => void
+  ) {}
+
+  public setLoading(newValue: boolean) {
+    if (this.loading === newValue) {
+      return;
+    }
+    this.loading = newValue;
+
+    if (newValue) {
+      clearTimeout(this.timer);
+      if (!this.spinnerShown) {
+        this.timer = setTimeout(() => {
+          this.showSpinner();
+          this.spinnerShown = true;
+          this.spinnerShownTime = Date.now();
+        }, 200);
+      }
+    } else {
+      clearTimeout(this.timer);
+      if (this.spinnerShown) {
+        const minTimeRemaining = 250 - (Date.now() - this.spinnerShownTime!);
+        if (minTimeRemaining > 0) {
+          setTimeout(() => {
+            this.hideSpinner();
+            this.spinnerShown = false;
+            this.spinnerShownTime = undefined;
+          }, minTimeRemaining);
+        } else {
+          this.hideSpinner();
+          this.spinnerShown = false;
+          this.spinnerShownTime = undefined;
+        }
+      }
+    }
+  }
+}

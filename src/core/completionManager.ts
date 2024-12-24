@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
+import { CompletionFilterService } from "./completionFilterService";
 import { ConfigContainer } from "./configuration";
 import { LlmClient } from "./llmClient";
 import { Logger, LogManager } from "./logger";
-import { formatPosition, ProgrammaticPromise } from "./util";
+import { formatPosition, formatRange, ProgrammaticPromise } from "./util";
 
 interface Event<T> {
   subscribe: (handler: (message: T) => void) => void;
@@ -20,7 +21,7 @@ class EventOwner<T> implements Event<T> {
   }
 }
 
-interface CancellationToken {
+export interface CancellationToken {
   readonly isCancellationRequested: boolean;
   readonly onCancellationRequested: Event<void>;
   readonly cancelled: Promise<boolean>;
@@ -61,31 +62,25 @@ interface Completion {
   completed: boolean;
 }
 
-async function stringStreamToString(input: AsyncGenerator<string>) {
-  let result = "";
-  for await (const chunk of input) {
-    result += chunk;
-  }
-  return result;
-}
-
 export class CompletionManager implements vscode.InlineCompletionItemProvider {
   private log: Logger;
+  private completions: Completion[] = [];
+  private nextId = 0;
+
+  readonly onCompletionInProgress = new EventOwner<boolean>();
 
   constructor(
     private config: ConfigContainer,
     private llmClient: LlmClient,
-    logManager: LogManager
+    private completionFilterService: CompletionFilterService,
+    private logManager: LogManager
   ) {
-    this.requestLoop();
     this.log = logManager.get(
       "Completion Manager",
       (c) => c.logCompletionManager
     );
+    this.requestLoop();
   }
-
-  private completions: Completion[] = [];
-  private nextId = 0;
 
   async provideInlineCompletionItems(
     document: vscode.TextDocument,
@@ -94,16 +89,18 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
     vsCodeToken: vscode.CancellationToken
   ): Promise<vscode.InlineCompletionItem[]> {
     const id = this.nextId++;
-    const offset = document.offsetAt(position);
+    const config = this.config.config;
 
     this.log.info?.(
       `received request ${
         context.triggerKind === vscode.InlineCompletionTriggerKind.Automatic
           ? "automatic"
           : "invoke"
-      } ${formatPosition(position)} (${offset}) id: ${id} ${
+      } ${formatPosition(position)} id: ${id} ${
         context.selectedCompletionInfo
-          ? "completion info: " + context.selectedCompletionInfo.text
+          ? `completion info: "${
+              context.selectedCompletionInfo.text
+            }" ${formatRange(context.selectedCompletionInfo.range)}`
           : ""
       }\n${document.getText(
         new vscode.Range(
@@ -117,14 +114,46 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
 
     const token = new CancellationTokenOwner();
 
-    let prefix =
-      document.getText(
-        new vscode.Range(document.positionAt(offset - 30), position)
-      ) + (context.selectedCompletionInfo?.text ?? "");
-
-    const suffix = document.getText(
-      new vscode.Range(position, document.positionAt(offset - 10))
-    );
+    let offset: number;
+    let prefix: string;
+    let suffix: string;
+    if (context.selectedCompletionInfo) {
+      // the range of the completion info is the text that is already
+      // typed after the start of the completion. We perform the
+      // completion as if the completion was already selected
+      const range = context.selectedCompletionInfo.range;
+      const rangeStartOffset = document.offsetAt(range.start);
+      offset = rangeStartOffset + context.selectedCompletionInfo.text.length;
+      prefix =
+        document.getText(
+          new vscode.Range(
+            document.positionAt(rangeStartOffset - config.prefixLength),
+            range.start
+          )
+        ) + context.selectedCompletionInfo.text;
+      suffix = document.getText(
+        new vscode.Range(
+          range.end,
+          document.positionAt(
+            document.offsetAt(range.end) + config.suffixLength
+          )
+        )
+      );
+    } else {
+      offset = document.offsetAt(position);
+      prefix = document.getText(
+        new vscode.Range(
+          document.positionAt(offset - config.prefixLength),
+          position
+        )
+      );
+      suffix = document.getText(
+        new vscode.Range(
+          position,
+          document.positionAt(offset + config.suffixLength)
+        )
+      );
+    }
 
     const now = Date.now();
 
@@ -133,21 +162,11 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
       startTime: now,
       file: document.fileName,
       offset,
-      matchPrefix: prefix.substring(prefix.length - 15),
+      matchPrefix: prefix.substring(prefix.length - config.matchLength),
       availableCompletion: "",
       token,
       completed: false,
     };
-
-    function createItem(completion: string) {
-      return [
-        new vscode.InlineCompletionItem(
-          (context.selectedCompletionInfo?.text ?? "") + completion,
-          context.selectedCompletionInfo?.range ??
-            new vscode.Range(position, position)
-        ),
-      ];
-    }
 
     // filter existing completions
     this.completions = this.completions.filter(
@@ -158,43 +177,13 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
     );
 
     // find matching existing completion
-    const searchPrefix = prefix.substring(prefix.length - 10);
+    const bestCandidate = CompletionManager.findBestCandidate(
+      prefix.substring(prefix.length - config.searchLength),
+      currentCompletion,
+      this.completions
+    );
 
-    const candidates: {
-      perfectMatch: boolean;
-      completionStr: string;
-      completion: Completion;
-    }[] = [];
-
-    for (const completion of this.completions) {
-      // limit the distance of the completion point
-      if (Math.abs(completion.offset - offset) > 30) {
-        continue;
-      }
-      const allText = completion.matchPrefix + completion.availableCompletion;
-
-      // check if the existing completion contains the prefix of the current completion request
-      const idx = allText.indexOf(searchPrefix);
-      if (idx >= 0) {
-        // Check if this is a perfect match. If so, we don't need to trigger another completion later
-        const perfectMatch =
-          completion.completed &&
-          completion.file === currentCompletion.file &&
-          completion.offset === currentCompletion.offset &&
-          completion.matchPrefix === currentCompletion.matchPrefix;
-
-        candidates.push({
-          perfectMatch,
-          completionStr: allText.substring(idx + searchPrefix.length),
-          completion,
-        });
-      }
-    }
-
-    // sort by descending completion length
-    candidates.sort((a, b) => b.completionStr.length - a.completionStr.length);
-
-    if (candidates.length === 0 || !candidates[0].perfectMatch) {
+    if (!(bestCandidate?.perfectMatch ?? false)) {
       this.log.info?.("Queuing Completion " + id);
       this.requestPending.resolve(true);
       this.pendingRequest = {
@@ -202,10 +191,14 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
         factory: async () => {
           currentCompletion.startTime = Date.now();
           try {
-            for await (const chunk of await this.llmClient.getCompletion(
+            let chars = await this.llmClient.getCompletion(
+              `Completion ${id}`,
               prefix,
-              suffix
-            )) {
+              suffix,
+              currentCompletion.token
+            );
+            chars = this.completionFilterService.filter(chars);
+            for await (const chunk of chars) {
               currentCompletion.availableCompletion += chunk;
             }
           } finally {
@@ -215,16 +208,23 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
       };
     }
 
-    if (candidates.length === 0) {
+    if (bestCandidate === undefined) {
       this.log.info?.("Found no existing completion");
       return [];
     }
 
-    const bestCandidate = candidates[0];
     this.log.info?.(
-      `Found existing completion: ${bestCandidate.completion.id} perfectMatch: ${bestCandidate.perfectMatch}`
+      `Found existing completion: ${bestCandidate.completion.id} perfectMatch: ${bestCandidate.perfectMatch} completion:\n${bestCandidate.completionStr}`
     );
-    return await createItem(bestCandidate.completionStr);
+
+    return [
+      new vscode.InlineCompletionItem(
+        (context.selectedCompletionInfo?.text ?? "") +
+          bestCandidate.completionStr,
+        context.selectedCompletionInfo?.range ??
+          new vscode.Range(position, position)
+      ),
+    ];
   }
 
   private requestPending = new ProgrammaticPromise<boolean>();
@@ -241,15 +241,19 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
 
   private async requestLoop() {
     this.log.info?.("Entering Request Loop");
+    const log = this.logManager.get(
+      "Completion Manager (queue)",
+      (c) => c.logCompletionManager
+    );
     while (true) {
       try {
-        this.log.info?.("Waiting for next request");
+        log.info?.("Waiting for next request");
         await Promise.any([
           this.requestPending.promise,
           this.stopToken.cancelled,
         ]);
         if (this.stopToken.isCancellationRequested) {
-          this.log.info?.("Stop requested, exiting loop");
+          log.info?.("Stop requested, exiting loop");
           break;
         }
         this.requestPending = new ProgrammaticPromise();
@@ -259,17 +263,97 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
         this.completions.push(request.completion);
 
         // perform completion
-        this.log.info?.(
-          "Start fetching completion for " + request.completion.id
-        );
-        await request.factory();
-        this.log.info?.("Completion fetched for " + request.completion.id);
+        log.info?.("Start fetching completion for " + request.completion.id);
+        this.onCompletionInProgress.fire(true);
+        try {
+          await request.factory();
+        } finally {
+          this.onCompletionInProgress.fire(false);
+          log.info?.("Completion fetched for " + request.completion.id);
 
-        // trigger completion to show results
-        vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
+          // trigger completion to show results
+          vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
+        }
       } catch (e) {
-        this.log.error?.("Error in request loop: " + e);
+        log.error?.("Error in request loop: " + e);
       }
     }
+  }
+
+  static findBestCandidate<
+    T extends Pick<
+      Completion,
+      "file" | "offset" | "matchPrefix" | "availableCompletion" | "completed"
+    >
+  >(
+    searchPrefix: string,
+    currentCompletion: Pick<Completion, "file" | "offset" | "matchPrefix">,
+    completions: T[]
+  ):
+    | {
+        perfectMatch: boolean;
+        completionStr: string;
+        completion: T;
+      }
+    | undefined {
+    const candidates: (NonNullable<
+      ReturnType<typeof this.findBestCandidate<T>>
+    > & {
+      cursorChange: number;
+    })[] = [];
+
+    for (const completion of completions) {
+      const allText = completion.matchPrefix + completion.availableCompletion;
+
+      // check if the existing completion contains the prefix of the current completion request
+      const idx = allText.indexOf(searchPrefix);
+      if (idx >= 0) {
+        // Check if this is a perfect match. If so, we don't need to trigger another completion later
+        const perfectMatch =
+          completion.file === currentCompletion.file &&
+          completion.offset === currentCompletion.offset &&
+          completion.matchPrefix === currentCompletion.matchPrefix;
+
+        candidates.push({
+          perfectMatch,
+          completionStr: allText.substring(idx + searchPrefix.length),
+          completion,
+          cursorChange: idx - completion.matchPrefix.length,
+        });
+      }
+    }
+
+    candidates.sort((a, b) => {
+      if (a.perfectMatch && !b.perfectMatch) {
+        return 1;
+      }
+      if (!a.perfectMatch && b.perfectMatch) {
+        return -1;
+      }
+
+      // negative cursor change means that some of the prefix has been deleted. When creating the completion,
+      // the LLM was given a longer prefix and with part of the prefix removed, the completion can be completely
+      // different and much better.
+      if (a.cursorChange < 0 || b.cursorChange < 0) {
+        const result = a.cursorChange - b.cursorChange;
+        if (result !== 0) {
+          return result;
+        }
+      }
+
+      // sort by descending completion length
+      return a.completionStr.length - b.completionStr.length;
+    });
+
+    if (candidates.length === 0) {
+      return undefined;
+    }
+
+    const candidate = candidates[candidates.length - 1];
+    return {
+      completion: candidate.completion,
+      completionStr: candidate.completionStr,
+      perfectMatch: candidate.perfectMatch,
+    };
   }
 }

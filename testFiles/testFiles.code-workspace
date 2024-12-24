@@ -6,6 +6,7 @@
   ],
   "settings": {
     "openAutoComplete.apiBase": "https://api.mistral.ai/",
-    "openAutoComplete.log.completionManager": true
+    "openAutoComplete.log.completionManager": true,
+    "openAutoComplete.log.completionStop": true
   }
 }
