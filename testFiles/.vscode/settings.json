@@ -1,0 +1,12 @@
+{
+  // "openAutoComplete.apiBase": "https://api.mistral.ai/",
+  // "openAutoComplete.provider": "mistral",
+  "openAutoComplete.provider": "ollama",
+  "openAutoComplete.apiBase": "http://localhost:11434/",
+  "openAutoComplete.model": "opencoder:1.5b",
+  // "openAutoComplete.model": "starcoder2:3b",
+  // "openAutoComplete.model": "codegemma:2b-code",
+  "openAutoComplete.log.completionManager": true,
+  "openAutoComplete.log.completionStop": true,
+  "openAutoComplete.prefixLength": 200
+}

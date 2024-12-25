@@ -5,34 +5,24 @@ describe("findBestCandidate", () => {
     file: "foo.ts",
     offset: 5,
     matchPrefix: "abc",
-    availableCompletion: "defg",
+    availableResponse: "defg",
     completed: true,
   };
   const existingCompletionB = {
     file: "foo.ts",
     offset: 6,
     matchPrefix: "abcd",
-    availableCompletion: "EFG",
+    availableResponse: "EFG",
     completed: true,
   };
 
   it("no existing completions", () => {
-    expect(
-      CompletionManager.findBestCandidate(
-        "abc",
-        { file: "foo.ts", offset: 5, matchPrefix: "abc" },
-        []
-      )
-    ).toBeUndefined();
+    expect(CompletionManager.findBestCandidate("abc", [])).toBeUndefined();
   });
 
   it("match after deletion", () => {
     expect(
-      CompletionManager.findBestCandidate(
-        "ab",
-        { file: "foo.ts", offset: 5, matchPrefix: "ab" },
-        [existingCompletionA]
-      )
+      CompletionManager.findBestCandidate("ab", [existingCompletionA])
     ).toEqual({
       perfectMatch: false,
       completionStr: "cdefg",
@@ -42,11 +32,7 @@ describe("findBestCandidate", () => {
 
   it("match after addition", () => {
     expect(
-      CompletionManager.findBestCandidate(
-        "abcd",
-        { file: "foo.ts", offset: 5, matchPrefix: "ab" },
-        [existingCompletionA]
-      )
+      CompletionManager.findBestCandidate("abcd", [existingCompletionA])
     ).toEqual({
       perfectMatch: false,
       completionStr: "efg",
@@ -56,11 +42,7 @@ describe("findBestCandidate", () => {
 
   it("find perfect match", () => {
     expect(
-      CompletionManager.findBestCandidate(
-        "abc",
-        { file: "foo.ts", offset: 5, matchPrefix: "abc" },
-        [existingCompletionA]
-      )
+      CompletionManager.findBestCandidate("abc", [existingCompletionA])
     ).toEqual({
       perfectMatch: true,
       completionStr: "defg",
@@ -70,11 +52,10 @@ describe("findBestCandidate", () => {
 
   it("choose the completion with fewer deletions", () => {
     expect(
-      CompletionManager.findBestCandidate(
-        "ab",
-        { file: "foo.ts", offset: 5, matchPrefix: "ab" },
-        [existingCompletionA, existingCompletionB]
-      )
+      CompletionManager.findBestCandidate("ab", [
+        existingCompletionA,
+        existingCompletionB,
+      ])
     ).toEqual({
       perfectMatch: false,
       completionStr: "cdefg",
@@ -83,11 +64,10 @@ describe("findBestCandidate", () => {
   });
   it("prefer perfect match", () => {
     expect(
-      CompletionManager.findBestCandidate(
-        "ab",
-        { file: "foo.ts", offset: 6, matchPrefix: "abcd" },
-        [existingCompletionA, existingCompletionB]
-      )
+      CompletionManager.findBestCandidate("ab", [
+        existingCompletionA,
+        existingCompletionB,
+      ])
     ).toEqual({
       perfectMatch: true,
       completionStr: "cdEFG",

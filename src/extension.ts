@@ -21,6 +21,8 @@ function readConfiguration() {
     suffixLength: vsCodeConfig.get("suffixLength")!,
     matchLength: vsCodeConfig.get("matchLength")!,
     searchLength: vsCodeConfig.get("searchLength")!,
+    model: vsCodeConfig.get("model")!,
+    provider: vsCodeConfig.get("provider")!,
   };
   return config;
 }

@@ -1,4 +1,6 @@
+import { Ollama } from "ollama";
 import { OutputChannel } from "vscode";
+import { AsyncGenerators } from "./asyncGenerators";
 import { CancellationToken } from "./completionManager";
 import { ConfigContainer } from "./configuration";
 
@@ -11,13 +13,9 @@ async function* readLines(
 
   while (!token.isCancellationRequested) {
     const part = await reader.read();
-    if (part.done) {
+    if (part.done || token.isCancellationRequested) {
       break;
     }
-    if (token.isCancellationRequested) {
-      break;
-    }
-
     if (part.value) {
       buffer += decoder.decode(part.value);
 
@@ -37,10 +35,10 @@ async function* readLines(
 
   if (!token.isCancellationRequested) {
     yield buffer;
+  } else {
+    // cancel the reader abort the completion and to make sure resources are released
+    await reader.cancel();
   }
-
-  // always cancel the reader to make sure resources are released
-  await reader.cancel();
 }
 
 async function* splitToMessageStrings(reader: AsyncGenerator<string>) {
@@ -76,18 +74,6 @@ async function* messagesToCharStream(
       yield ch;
     }
   }
-}
-
-async function* tap<T>(
-  input: AsyncGenerator<T>,
-  action: (item: T) => void,
-  end?: () => void
-): AsyncGenerator<T> {
-  for await (const item of input) {
-    action(item);
-    yield item;
-  }
-  end?.();
 }
 
 interface MistralStreamMessage {
@@ -142,14 +128,88 @@ ${prefix}<FIM>${suffix}
 ===
 `
     );
+    const startTime = Date.now();
 
+    let result: AsyncGenerator<string>;
+    switch (this.config.config.provider) {
+      case "mistral":
+        result = await this.getCompletionMistral(prefix, suffix, token);
+        break;
+      case "ollama":
+        result = this.getCompletionOllama(prefix, suffix, token);
+        break;
+      default:
+        throw new Error(`Unknown provider: ${this.config}`);
+    }
+
+    let firstChar = true;
+    return AsyncGenerators.tap(
+      result,
+      (str) => {
+        if (firstChar) {
+          firstChar = false;
+          this.channel.appendLine(
+            `Time to first Char: ${Date.now() - startTime}ms`
+          );
+        }
+        return this.channel.append(str);
+      },
+      () => {
+        this.channel.appendLine(
+          `\n=== completed. Time to completion: ${Date.now() - startTime}ms`
+        );
+      }
+    );
+  }
+
+  async *getCompletionOllama(
+    prefix: string,
+    suffix: string,
+    token: CancellationToken
+  ): AsyncGenerator<string> {
+    const config = this.config.config;
+    const ollama = new Ollama({ host: config.apiBase });
+    const response = await ollama.generate({
+      model: config.model,
+      prompt: prefix,
+      suffix,
+      stream: true,
+    });
+    if (token.isCancellationRequested) {
+      ollama.abort();
+      return;
+    }
+
+    token.onCancellationRequested.subscribe(() => {
+      ollama.abort();
+    });
+
+    try {
+      for await (const chunk of response) {
+        if (token.isCancellationRequested) {
+          return;
+        }
+        for (const char of chunk.response) {
+          yield char;
+        }
+      }
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        // swallow
+      }
+    }
+  }
+
+  async getCompletionMistral(
+    prefix: string,
+    suffix: string,
+    token: CancellationToken
+  ): Promise<AsyncGenerator<string>> {
     const config = this.config.config;
     let apiBase = config.apiBase;
     if (apiBase.endsWith("/")) {
       apiBase = apiBase.substring(0, apiBase.length - 1);
     }
-
-    const startTime = Date.now();
 
     const response = await fetch(apiBase + "/v1/fim/completions", {
       method: "POST",
@@ -178,27 +238,20 @@ ${prefix}<FIM>${suffix}
 
     const lines = readLines(reader, token);
     let usage: MistralStreamMessage["usage"] = undefined;
-    const messages = tap(parseMessages(splitToMessageStrings(lines)), (msg) => {
-      if (msg.usage) {
-        usage = msg.usage;
+    const messages = AsyncGenerators.tap(
+      parseMessages(splitToMessageStrings(lines)),
+      (msg) => {
+        if (msg.usage) {
+          usage = msg.usage;
+        }
       }
-    });
+    );
     const chars = messagesToCharStream(messages);
 
-    let firstChar = true;
-    return tap(
+    return AsyncGenerators.tap(
       chars,
-      (str) => {
-        if (firstChar) {
-          firstChar = false;
-          this.channel.append(
-            `Time to first Char: ${Date.now() - startTime}ms\n`
-          );
-        }
-        return this.channel.append(str);
-      },
+      () => {},
       () => {
-        this.channel.appendLine("");
         if (usage) {
           this.channel.appendLine(
             `Usage: prompt tokens: ${usage.prompt_tokens} completion_tokens: ${usage.completion_tokens} total tokens: ${usage.total_tokens}`

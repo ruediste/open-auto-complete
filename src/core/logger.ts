@@ -30,7 +30,7 @@ export class Logger {
     doLog: (message: string) => void
   ): ((message: string) => void) | undefined {
     if (
-      this.channel.logLevel >= level &&
+      this.channel.logLevel <= level &&
       // always show warnings and above
       (level >= LogLevel.Warning || this.predicate(this.configContainer.config))
     ) {

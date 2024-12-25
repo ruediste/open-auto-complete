@@ -49,23 +49,24 @@ class CancellationTokenOwner implements CancellationToken {
   }
 }
 
-export interface CompletionRequest {}
-
-interface Completion {
+interface GenerationResponse {
   id: number;
-  startTime: number;
+  startTime?: number;
   file: string;
   offset: number;
   matchPrefix: string;
-  availableCompletion: string;
   token: CancellationTokenOwner;
-  completed: boolean;
+  generationCompleted: boolean;
+  finished$: ProgrammaticPromise<void>;
+  generatedChars: ReplayAsyncGenerator<string>;
+  availableResponse: string;
 }
 
 export class CompletionManager implements vscode.InlineCompletionItemProvider {
   private log: Logger;
-  private completions: Completion[] = [];
+  private generationResponses: GenerationResponse[] = [];
   private nextId = 0;
+  private completionTriggerPending = false;
 
   readonly onCompletionInProgress = new EventOwner<boolean>();
 
@@ -155,83 +156,158 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
       );
     }
 
-    const now = Date.now();
+    /*
+    General: Response Generation is considered as not started, in progress or complete. The completion becomes available as soon as the generation is complete. 
+Rules:
+- If there is an existing response (including the current one) with enough generated text to create a meaningful completion right away, create the completion.
+- Check the response generation in progress. If it exactly matches the current prefix, wait for it's completion.
+- Otherwise cancel the current generation, queue a generation for the current position and wait for it's completion.
+*/
 
-    const currentCompletion: Completion = {
+    const matchPrefix = prefix.substring(prefix.length - config.matchLength);
+    const currentResponse: GenerationResponse = {
       id,
-      startTime: now,
       file: document.fileName,
       offset,
       matchPrefix: prefix.substring(prefix.length - config.matchLength),
-      availableCompletion: "",
+      availableResponse: "",
+      generatedChars: new ReplayAsyncGenerator<string>(),
       token,
-      completed: false,
+      generationCompleted: false,
+      finished$: new ProgrammaticPromise(),
     };
 
-    // filter existing completions
-    this.completions = this.completions.filter(
-      (completion) =>
-        !completion.completed ||
-        (Math.abs(completion.offset - offset) < 30 &&
-          now - completion.startTime < 15 * 1000)
-    );
-
-    // find matching existing completion
-    const bestCandidate = CompletionManager.findBestCandidate(
-      prefix.substring(prefix.length - config.searchLength),
-      currentCompletion,
-      this.completions
-    );
-
-    if (!(bestCandidate?.perfectMatch ?? false)) {
-      this.log.info?.("Queuing Completion " + id);
-      this.requestPending.resolve(true);
+    const queueResponseGeneration = () => {
+      this.pendingRequest?.completion.finished$.resolve();
       this.pendingRequest = {
-        completion: currentCompletion,
+        completion: currentResponse,
         factory: async () => {
-          currentCompletion.startTime = Date.now();
-          try {
-            let chars = await this.llmClient.getCompletion(
-              `Completion ${id}`,
-              prefix,
-              suffix,
-              currentCompletion.token
-            );
-            chars = this.completionFilterService.filter(chars);
-            for await (const chunk of chars) {
-              currentCompletion.availableCompletion += chunk;
-            }
-          } finally {
-            currentCompletion.completed = true;
+          let chars = await this.llmClient.getCompletion(
+            `Completion ${id}`,
+            prefix,
+            suffix,
+            currentResponse.token
+          );
+          chars = this.completionFilterService.filter(
+            chars,
+            true,
+            () => {},
+            () => token.cancel()
+          );
+          for await (const chunk of chars) {
+            currentResponse.availableResponse += chunk;
           }
         },
       };
+      this.requestPending.resolve(true);
+    };
+
+    // filter existing responses
+    const now = Date.now();
+    this.generationResponses = this.generationResponses.filter((completion) => {
+      // if the cursor moved too far, remove existing response
+      if (Math.abs(completion.offset - offset) > 30) {
+        return false;
+      }
+
+      // if more than 30s passed, remove response
+      if (completion.startTime && now - completion.startTime > 30 * 1000) {
+        return false;
+      }
+
+      // otherwise keep
+      return true;
+    });
+
+    function createResult(completionStr: string) {
+      return [
+        new vscode.InlineCompletionItem(
+          (context.selectedCompletionInfo?.text ?? "") + completionStr,
+          context.selectedCompletionInfo?.range ??
+            new vscode.Range(position, position)
+        ),
+      ];
     }
 
-    if (bestCandidate === undefined) {
-      this.log.info?.("Found no existing completion");
+    // find best matching existing generation response
+    const bestCandidate = CompletionManager.findBestCandidate(
+      prefix.substring(prefix.length - config.searchLength),
+      this.generationResponses
+    );
+
+    // check if the filters consider the response complete
+    if (bestCandidate !== undefined) {
+      const filteredCompletion = await this.applyFilters(
+        bestCandidate.completionStr
+      );
+
+      const generate =
+        bestCandidate.generationRequired ||
+        Math.abs(bestCandidate.completion.offset - offset) > 10;
+
+      this.log.info?.(
+        `Found existing completion: ${bestCandidate.completion.id} queuing generation: ${generate} completion:\n${filteredCompletion}`
+      );
+
+      if (generate) {
+        if (bestCandidate.generationRequired) {
+          this.completionTriggerPending = true;
+        }
+        queueResponseGeneration();
+      }
+      return createResult(filteredCompletion);
+    }
+
+    this.completionTriggerPending = false;
+
+    // check the response currently being generated
+    if (this.currentGeneration) {
+      // capture the field to avoid changes while awaiting
+      const currentGeneration = this.currentGeneration;
+
+      if (currentGeneration.matchPrefix === matchPrefix) {
+        await currentGeneration.finished$.promise;
+        if (vsCodeToken.isCancellationRequested) {
+          return [];
+        }
+
+        const completion = await this.applyFilters(
+          currentGeneration.availableResponse
+        );
+
+        return createResult(completion);
+      } else {
+        // cancel current generation
+        currentGeneration.token.cancel();
+      }
+    }
+
+    // No existing response could be used, and the response currently being generated does not match as well.
+    // Queue a response generation for the current request
+    this.log.info?.(`Queuing Generation and waiting for completion for ${id}`);
+    queueResponseGeneration();
+
+    await currentResponse.finished$.promise;
+
+    if (!currentResponse.generationCompleted) {
       return [];
     }
 
-    this.log.info?.(
-      `Found existing completion: ${bestCandidate.completion.id} perfectMatch: ${bestCandidate.perfectMatch} completion:\n${bestCandidate.completionStr}`
+    const filteredResponse = await this.applyFilters(
+      currentResponse.availableResponse
     );
-
-    return [
-      new vscode.InlineCompletionItem(
-        (context.selectedCompletionInfo?.text ?? "") +
-          bestCandidate.completionStr,
-        context.selectedCompletionInfo?.range ??
-          new vscode.Range(position, position)
-      ),
-    ];
+    this.log.info?.(
+      `Using result of generation for ${id}:\n${currentResponse.availableResponse}\n===\n${filteredResponse}`
+    );
+    return createResult(filteredResponse);
   }
 
   private requestPending = new ProgrammaticPromise<boolean>();
   private pendingRequest?: {
-    completion: Completion;
+    completion: GenerationResponse;
     factory: () => Promise<void>;
   };
+  private currentGeneration?: GenerationResponse;
 
   private stopToken = new CancellationTokenOwner();
 
@@ -259,20 +335,30 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
         this.requestPending = new ProgrammaticPromise();
         const request = this.pendingRequest!;
         this.pendingRequest = undefined;
-
-        this.completions.push(request.completion);
+        this.currentGeneration = request.completion;
 
         // perform completion
         log.info?.("Start fetching completion for " + request.completion.id);
         this.onCompletionInProgress.fire(true);
+        request.completion.startTime = Date.now();
         try {
           await request.factory();
+          request.completion.generationCompleted = true;
+          this.generationResponses.push(request.completion);
         } finally {
+          request.completion.finished$.resolve();
+          this.currentGeneration = undefined;
           this.onCompletionInProgress.fire(false);
           log.info?.("Completion fetched for " + request.completion.id);
 
           // trigger completion to show results
-          vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
+          if (this.completionTriggerPending) {
+            log.info?.("Triggering inline completion");
+            this.completionTriggerPending = false;
+            vscode.commands.executeCommand(
+              "editor.action.inlineSuggest.trigger"
+            );
+          }
         }
       } catch (e) {
         log.error?.("Error in request loop: " + e);
@@ -280,18 +366,60 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
     }
   }
 
+  static searchCutInCompletion(
+    searchPrefix: string,
+    completion: { matchPrefix: string; availableResponse: string }
+  ) {
+    const allText = completion.matchPrefix + completion.availableResponse;
+
+    // test if the existing completion contains the prefix of the current completion request
+    // first search the last occurrence in the prefix
+    const idx = allText.lastIndexOf(
+      searchPrefix,
+      completion.matchPrefix.length + searchPrefix.length
+    );
+    if (idx < 0) {
+      // then look for the first occurrence in the generated text
+      allText.indexOf(searchPrefix, completion.matchPrefix.length);
+    }
+    if (idx >= 0) {
+      const cutIdx = idx + searchPrefix.length;
+      return { cutIdx, completion: allText.substring(cutIdx) };
+    }
+  }
+
+  private async applyFilters(completionStr: string) {
+    let completionStopped = false;
+    const stopToken = {
+      isCancelRequested: false,
+    };
+
+    let completion = "";
+
+    for await (const char of this.completionFilterService.filter(
+      stringToCharGenerator(completionStr, stopToken),
+      false,
+      () => {
+        stopToken.isCancelRequested = true;
+        completionStopped = true;
+      },
+      () => {}
+    )) {
+      if (!completionStopped) {
+        completion += char;
+      }
+    }
+    return completion;
+  }
+
   static findBestCandidate<
-    T extends Pick<
-      Completion,
-      "file" | "offset" | "matchPrefix" | "availableCompletion" | "completed"
-    >
+    T extends Pick<GenerationResponse, "matchPrefix" | "availableResponse">
   >(
     searchPrefix: string,
-    currentCompletion: Pick<Completion, "file" | "offset" | "matchPrefix">,
-    completions: T[]
+    existingResponses: T[]
   ):
     | {
-        perfectMatch: boolean;
+        generationRequired: boolean;
         completionStr: string;
         completion: T;
       }
@@ -302,33 +430,29 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
       cursorChange: number;
     })[] = [];
 
-    for (const completion of completions) {
-      const allText = completion.matchPrefix + completion.availableCompletion;
-
-      // check if the existing completion contains the prefix of the current completion request
-      const idx = allText.indexOf(searchPrefix);
-      if (idx >= 0) {
-        // Check if this is a perfect match. If so, we don't need to trigger another completion later
-        const perfectMatch =
-          completion.file === currentCompletion.file &&
-          completion.offset === currentCompletion.offset &&
-          completion.matchPrefix === currentCompletion.matchPrefix;
+    for (const completion of existingResponses) {
+      const match = this.searchCutInCompletion(searchPrefix, completion);
+      if (match) {
+        const generationRequired =
+          // When the cut is in the prefix, the LLM could have generated a different response for the shorter prefix
+          match.cutIdx < completion.matchPrefix.length;
 
         candidates.push({
-          perfectMatch,
-          completionStr: allText.substring(idx + searchPrefix.length),
+          generationRequired,
+          completionStr: match.completion,
           completion,
-          cursorChange: idx - completion.matchPrefix.length,
+          cursorChange: match.cutIdx - completion.matchPrefix.length,
         });
       }
     }
 
     candidates.sort((a, b) => {
-      if (a.perfectMatch && !b.perfectMatch) {
-        return 1;
-      }
-      if (!a.perfectMatch && b.perfectMatch) {
+      // if generation is required, candidates have a lower priority
+      if (a.generationRequired && !b.generationRequired) {
         return -1;
+      }
+      if (!a.generationRequired && b.generationRequired) {
+        return 1;
       }
 
       // negative cursor change means that some of the prefix has been deleted. When creating the completion,
@@ -353,7 +477,62 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
     return {
       completion: candidate.completion,
       completionStr: candidate.completionStr,
-      perfectMatch: candidate.perfectMatch,
+      generationRequired: candidate.generationRequired,
     };
+  }
+}
+
+async function* stringToCharGenerator(
+  input: string,
+  token?: { isCancelRequested: boolean }
+): AsyncGenerator<string, void, unknown> {
+  for (const char of input) {
+    yield char;
+    if (token?.isCancelRequested) {
+      return;
+    }
+  }
+}
+
+class ReplayAsyncGenerator<T> {
+  private existing: T[] = [];
+  private inputExhausted = false;
+  private newItem = new ProgrammaticPromise<void>();
+  private attached = false;
+
+  attach(input: AsyncGenerator<T>) {
+    if (this.attached) {
+      throw new Error("can only attach once");
+    }
+    this.attached = true;
+
+    this.pollLoop(input);
+  }
+
+  private async pollLoop(input: AsyncGenerator<T>) {
+    try {
+      for await (const item of input) {
+        this.existing.push(item);
+        this.newItem.resolve();
+        this.newItem = new ProgrammaticPromise();
+      }
+    } catch (e) {
+      console.log("Error while polling: ", e);
+    } finally {
+      this.inputExhausted = true;
+    }
+  }
+
+  async *get(): AsyncGenerator<T> {
+    let idx = 0;
+    while (true) {
+      while (idx < this.existing.length) {
+        yield this.existing[idx];
+      }
+      if (this.inputExhausted) {
+        break;
+      }
+      await this.newItem.promise;
+    }
   }
 }

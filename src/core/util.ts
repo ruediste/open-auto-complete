@@ -19,7 +19,7 @@ export function programmaticPromise<T>(): [
 }
 
 export class ProgrammaticPromise<T> {
-  promise: Promise<T>;
+  readonly promise: Promise<T>;
   resolve!: (value: T | PromiseLike<T>) => void;
   reject!: (reason?: any) => void;
 

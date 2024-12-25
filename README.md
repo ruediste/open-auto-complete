@@ -1,6 +1,14 @@
-# open-auto-complete README
+# Open Auto Complete
 
-An extension to create auto completions using LLMs. Based heavily on (continue)[https://www.continue.dev/]
+A VS Code extension to create auto completions using LLMs.
+
+## Introduction
+
+Products like Github Copilot or Cursor from Anysphere promise tools capable of solving complex coding tasks. They are ultimately based on the intelligence of LLMs, which I have found lacking so far. Whenever I try to make an LLM do a complex task for me, the utter lack of understanding shows through. Yet people build larger models and throw more context at them, hoping for improvements.
+
+What I think could work is a sort of typing support. Not to expect the LLM to think, but just to reduce the number of key strokes required. For this to work, the response time has to be as short as possible, favoring small models, small context and short completions.
+
+In addition, this is an open source project and there is no flat usage fee for the LLM. Thus there is no conflict of interest between sending many requests for a good developer experience and the profit generated from the flat fees.
 
 ## Features
 

@@ -28,6 +28,15 @@
     "configuration": {
       "title": "Open Auto Complete",
       "properties": {
+        "openAutoComplete.provider": {
+          "type": "string",
+          "description": "Provider to access the LLM",
+          "enum": [
+            "mistral",
+            "ollama"
+          ],
+          "default": "mistral"
+        },
         "openAutoComplete.apiBase": {
           "type": "string",
           "description": "URL to access the LLM",
@@ -37,15 +46,19 @@
           "type": "string",
           "description": "Api Key to access the LLM"
         },
+        "openAutoComplete.model": {
+          "type": "string",
+          "description": "LLM Model to use"
+        },
         "openAutoComplete.prefixLength": {
           "type": "number",
           "description": "Length of the prefix extracted from before the cursor position",
-          "default": 50
+          "default": 400
         },
         "openAutoComplete.suffixLength": {
           "type": "number",
           "description": "Length of the prefix extracted from before the cursor position",
-          "default": 20
+          "default": 100
         },
         "openAutoComplete.matchLength": {
           "type": "number",
@@ -98,6 +111,7 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
-    "lru-cache": "^11.0.2"
+    "lru-cache": "^11.0.2",
+    "ollama": "^0.5.11"
   }
 }
