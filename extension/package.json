@@ -21,8 +21,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "open-auto-complete.helloWorld",
-        "title": "Hello World"
+        "command": "open-auto-complete.fimDataSet",
+        "title": "Create FIM Data Set"
       }
     ],
     "configuration": {

@@ -174,6 +174,9 @@ ${prefix}<FIM>${suffix}
       prompt: prefix,
       suffix,
       stream: true,
+      options: {
+        stop: ["<|fim_pad|>", "<|file_sep|>", "<|fim_prefix|>"],
+      },
     });
     if (token.isCancellationRequested) {
       ollama.abort();

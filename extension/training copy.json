@@ -1,0 +1,507 @@
+[
+  {
+    "prefix": "// This is a class  named Calculator which has a property \"value\"    initialized to 0.",
+    "completion": "//  It also has two methods: \"add\" and \"sub\". The \"add\" method adds a given  value to the current value of  the calculator.",
+    "suffix": "// The \"sub\" method subtracts a given  value to the current value of  the calculator."
+  },
+  {
+    "prefix": "//  It also has two methods: \"add\" and \"sub\". The \"add\" method adds a given  value to the current value of  the calculator.",
+    "completion": "// The \"sub\" method subtracts a given  value to the current value of  the calculator.",
+    "suffix": "// The methods"
+  },
+  {
+    "prefix": "// The \"sub\" method subtracts a given  value to the current value of  the calculator.",
+    "completion": "// The methods",
+    "suffix": "class Calculator {"
+  },
+  {
+    "prefix": "// The methods",
+    "completion": "class Calculator {",
+    "suffix": "  value = 0;"
+  },
+  {
+    "prefix": "class Calculator {",
+    "completion": "  value = 0;",
+    "suffix": ""
+  },
+  {
+    "prefix": "  value = 0;",
+    "completion": "",
+    "suffix": "  add(value: number) {"
+  },
+  {
+    "prefix": "",
+    "completion": "  add(value: number) {",
+    "suffix": "    this.value += value;"
+  },
+  {
+    "prefix": "  add(value: number) {",
+    "completion": "    this.value += value;",
+    "suffix": "  }"
+  },
+  {
+    "prefix": "    this.value += value;",
+    "completion": "  }",
+    "suffix": ""
+  },
+  {
+    "prefix": "  }",
+    "completion": "",
+    "suffix": "  sub(value: number) {"
+  },
+  {
+    "prefix": "",
+    "completion": "  sub(value: number) {",
+    "suffix": "    this.value -= value;"
+  },
+  {
+    "prefix": "  sub(value: number) {",
+    "completion": "    this.value -= value;",
+    "suffix": "  }"
+  },
+  {
+    "prefix": "    this.value -= value;",
+    "completion": "  }",
+    "suffix": ""
+  },
+  {
+    "prefix": "  }",
+    "completion": "",
+    "suffix": "  mul(value: number) {"
+  },
+  {
+    "prefix": "",
+    "completion": "  mul(value: number) {",
+    "suffix": "    this.value *= value;"
+  },
+  {
+    "prefix": "  mul(value: number) {",
+    "completion": "    this.value *= value;",
+    "suffix": "  }"
+  },
+  {
+    "prefix": "    this.value *= value;",
+    "completion": "  }",
+    "suffix": ""
+  },
+  {
+    "prefix": "  }",
+    "completion": "",
+    "suffix": "  div(value: number) {"
+  },
+  {
+    "prefix": "",
+    "completion": "  div(value: number) {",
+    "suffix": "    if (value === 0) {"
+  },
+  {
+    "prefix": "  div(value: number) {",
+    "completion": "    if (value === 0) {",
+    "suffix": "      throw new Error(\"division by zero\");"
+  },
+  {
+    "prefix": "    if (value === 0) {",
+    "completion": "      throw new Error(\"division by zero\");",
+    "suffix": "    }"
+  },
+  {
+    "prefix": "      throw new Error(\"division by zero\");",
+    "completion": "    }",
+    "suffix": "    this.value /= value;"
+  },
+  {
+    "prefix": "    }",
+    "completion": "    this.value /= value;",
+    "suffix": "  }"
+  },
+  {
+    "prefix": "    this.value /= value;",
+    "completion": "  }",
+    "suffix": "}"
+  },
+  {
+    "prefix": "  }",
+    "completion": "}",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  },
+  {
+    "prefix": "// Log Hello World\nconsole.",
+    "completion": "log(\"Hello Universe\")",
+    "suffix": ""
+  }
+]

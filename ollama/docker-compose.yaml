@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  ollama-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: ollama-webui
+    restart: unless-stopped
+    volumes:
+      - ./data/webui:/app/backend/data
+    environment:
+      - WEBUI_AUTH=False
+      - WEBUI_NAME=Local
+      - OLLAMA_BASE_URL=http://ollama-server:11434
+    ports:
+      - 8081:8080
+
+  ollama-server:
+    image: intelanalytics/ipex-llm-inference-cpp-xpu:latest
+    container_name: ollama-server
+    restart: unless-stopped
+    ports:
+      - 11434:11434
+    devices:
+      - /dev/dri
+    volumes:
+      - ./data/ollama:/root/.ollama/models
+      - ./run.sh:/run.sh
+    environment:
+      - DEVICE=Arc
+    shm_size: 16g
+    command: ["/run.sh"]
+
+  # vllm-server:
+  #   image: vllm-openvino-env
+  #   container_name: vllm-server
+  #   volumes:
+  #     - ~/.cache/huggingface:/root/.cache/huggingface
+  #   ports:
+  #     - 8000:8000
+  #   ipc: host
+  #   command: "vllm serve QuantFactory/Qwen2.5-0.5B-GGUF --quantization gguf"

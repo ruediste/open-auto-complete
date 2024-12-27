@@ -95,6 +95,25 @@ export function activate(context: vscode.ExtensionContext) {
   manager.onCompletionInProgress.subscribe((loading) =>
     loadingSpinnerManager.setLoading(loading)
   );
+
+  // add command
+  vscode.commands.registerCommand("open-auto-complete.fimDataSet", async () => {
+    const file = await vscode.window.activeTextEditor?.document.getText()!;
+    const lines = file.split(/\r\n|\n/);
+    const examples: { prefix: string; suffix: string; completion: string }[] =
+      [];
+    for (let i = 0; i < lines.length - 2; i++) {
+      const prefix = lines[i];
+      const completion = lines[i + 1];
+      const suffix = lines[i + 2];
+      examples.push({
+        prefix,
+        completion,
+        suffix,
+      });
+    }
+    console.log(JSON.stringify(examples, undefined, " "));
+  });
 }
 
 export function deactivate() {}

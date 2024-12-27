@@ -3,9 +3,10 @@
   // "openAutoComplete.provider": "mistral",
   "openAutoComplete.provider": "ollama",
   "openAutoComplete.apiBase": "http://localhost:11434/",
-  "openAutoComplete.model": "opencoder:1.5b",
+  // "openAutoComplete.model": "opencoder:1.5b",
   // "openAutoComplete.model": "starcoder2:3b",
   // "openAutoComplete.model": "codegemma:2b-code",
+  "openAutoComplete.model": "qwen2.5-coder:0.5b-base-q8_0",
   "openAutoComplete.log.completionManager": true,
   "openAutoComplete.log.completionStop": true,
   "openAutoComplete.prefixLength": 200
