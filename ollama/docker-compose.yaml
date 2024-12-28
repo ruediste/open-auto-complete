@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   ollama-webui:
     image: ghcr.io/open-webui/open-webui:main
@@ -25,17 +23,19 @@ services:
     volumes:
       - ./data/ollama:/root/.ollama/models
       - ./run.sh:/run.sh
+      - ../fine-tune/data:/root/data
     environment:
       - DEVICE=Arc
     shm_size: 16g
     command: ["/run.sh"]
 
-  # vllm-server:
-  #   image: vllm-openvino-env
-  #   container_name: vllm-server
-  #   volumes:
-  #     - ~/.cache/huggingface:/root/.cache/huggingface
-  #   ports:
-  #     - 8000:8000
-  #   ipc: host
-  #   command: "vllm serve QuantFactory/Qwen2.5-0.5B-GGUF --quantization gguf"
+  vllm-server:
+    image: vllm-openvino-env
+    container_name: vllm-server
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ../fine-tune/data:/models
+    ports:
+      - 8000:8000
+    ipc: host
+    command: "vllm serve /models/test "

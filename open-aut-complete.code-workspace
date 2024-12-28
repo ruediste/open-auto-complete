@@ -1,13 +1,16 @@
 {
-	"folders": [
-		{
-			"path": "extension"
-		},
-		{
-			"path": "ollama"
-		}
-	],
-	"settings": {
-		"typescript.tsc.autoDetect": "off"
-	}
+  "folders": [
+    {
+      "path": "extension"
+    },
+    {
+      "path": "ollama"
+    },
+    {
+      "path": "fine-tune"
+    }
+  ],
+  "settings": {
+    "typescript.tsc.autoDetect": "off"
+  }
 }
