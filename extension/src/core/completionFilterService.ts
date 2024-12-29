@@ -26,6 +26,16 @@ async function* countWords(
     }
   }
 }
+
+async function* forEachCharater(
+  chars: AsyncGenerator<string>,
+  handler: (char: string) => void
+) {
+  for await (const char of chars) {
+    yield char;
+  }
+}
+
 export class CompletionFilterService {
   private logStopCompletion: Logger;
   private logStopGeneration: Logger;
@@ -89,6 +99,13 @@ export class CompletionFilterService {
       },
       (count) => {}
     );
+
+    result = forEachCharater(result, (char) => {
+      console.log(char);
+      if (char === "\n") {
+        stopCompletion("line break");
+      }
+    });
     return result;
   }
 }

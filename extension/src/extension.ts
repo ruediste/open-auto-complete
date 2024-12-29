@@ -9,6 +9,7 @@ import {
 } from "./core/configuration";
 import { LlmClient } from "./core/llmClient";
 import { LogManager } from "./core/logger";
+import { DataExtractionService } from "./fineTune/DataExtractionService";
 
 function readConfiguration() {
   const vsCodeConfig = vscode.workspace.getConfiguration("openAutoComplete");
@@ -60,6 +61,8 @@ export function activate(context: vscode.ExtensionContext) {
     logManager
   );
 
+  const dataExtractionService = new DataExtractionService(logChannel);
+
   context.subscriptions.push(manager);
 
   context.subscriptions.push(
@@ -98,21 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // add command
   vscode.commands.registerCommand("open-auto-complete.fimDataSet", async () => {
-    const file = await vscode.window.activeTextEditor?.document.getText()!;
-    const lines = file.split(/\r\n|\n/);
-    const examples: { prefix: string; suffix: string; completion: string }[] =
-      [];
-    for (let i = 0; i < lines.length - 2; i++) {
-      const prefix = lines[i];
-      const completion = lines[i + 1];
-      const suffix = lines[i + 2];
-      examples.push({
-        prefix,
-        completion,
-        suffix,
-      });
-    }
-    console.log(JSON.stringify(examples, undefined, " "));
+    await dataExtractionService.extractData();
   });
 }
 
