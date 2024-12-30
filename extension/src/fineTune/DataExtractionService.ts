@@ -1,7 +1,9 @@
 import ignore, { Ignore } from "ignore";
 import * as vscode from "vscode";
 
+export type FimExampleCategory = "random" | "beginningOfWord";
 export interface FimExample {
+  category: FimExampleCategory;
   prefix: string;
   suffix: string;
   completion: string;
@@ -92,22 +94,46 @@ function getParent(uri: vscode.Uri): vscode.Uri | undefined {
   return uri.with({ path: uri.path.substring(0, idx) });
 }
 
+function randomIntFromInterval(minInclusive: number, maxExclusive: number) {
+  return Math.floor(
+    Math.random() * (maxExclusive - minInclusive) + minInclusive
+  );
+}
+
 export class DataExtractionService {
   constructor(private channel: vscode.LogOutputChannel) {}
+
+  async extractAndSaveData() {
+    const data = await this.extractData();
+    this.saveData(data);
+  }
+
+  async saveData(
+    data: { folder: vscode.WorkspaceFolder; examples: FimExample[] }[]
+  ) {
+    for (const { folder, examples } of data) {
+      await vscode.workspace.fs.writeFile(
+        folder.uri.with({ path: folder.uri.path + "/training.json" }),
+        new TextEncoder().encode(JSON.stringify(examples, undefined, 2))
+      );
+    }
+  }
+
   async extractData() {
+    const data: { folder: vscode.WorkspaceFolder; examples: FimExample[] }[] =
+      [];
+
     for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      const examples: FimExample[] = [];
       this.channel.info?.(`Processing workspace folder: ${folder.uri.fsPath}`);
 
-      const examples: FimExample[] = [];
       const ig = new IgnoreContext();
       await ig.initialize(folder.uri);
       await this.processDirectory(folder.uri, ig, examples);
 
-      await vscode.workspace.fs.writeFile(
-        folder.uri.with({ path: folder.uri.path + "/training.json" }),
-        new TextEncoder().encode(JSON.stringify(examples))
-      );
+      data.push({ folder, examples });
     }
+    return data;
   }
 
   private async processDirectory(
@@ -129,28 +155,68 @@ export class DataExtractionService {
         await this.processDirectory(uri, await ig.subContext(uri), examples);
       }
       if ((type & vscode.FileType.File) !== 0) {
-        this.channel.info?.(`Processing file :${uri.path}`);
-        await this.extractExamples(
-          await new TextDecoder().decode(
-            await vscode.workspace.fs.readFile(uri)
-          ),
-          examples
-        );
+        if (uri.path.endsWith(".ts") || uri.path.endsWith(".cs")) {
+          this.channel.info?.(`Processing file :${uri.path}`);
+          await this.extractExamples(
+            await new TextDecoder().decode(
+              await vscode.workspace.fs.readFile(uri)
+            ),
+            examples
+          );
+        }
       }
     }
   }
 
   private async extractExamples(text: string, examples: FimExample[]) {
     const lines = text.split(/\r\n|\n/);
-    for (let i = 0; i < lines.length - 2; i++) {
-      const prefix = lines[i];
-      const completion = lines[i + 1];
-      const suffix = lines[i + 2];
-      examples.push({
-        prefix,
-        completion,
-        suffix,
-      });
+
+    // random
+    {
+      const chunkSize = 400;
+      for (let baseIdx = 0; baseIdx < text.length; baseIdx += chunkSize) {
+        for (const prefixSize of [100, 200, 400]) {
+          for (const suffixSize of [100, 200, 400]) {
+            for (const completionSize of [10, 40, 100, 200]) {
+              const addExample = (
+                split: number,
+                category: FimExampleCategory
+              ) => {
+                const example = {
+                  category: category,
+                  prefix: text.substring(
+                    Math.max(0, split - prefixSize),
+                    split
+                  ),
+                  suffix: text.substring(
+                    split + completionSize,
+                    split + completionSize + suffixSize
+                  ),
+                  completion: text.substring(split, split + completionSize),
+                };
+                examples.push(example);
+              };
+
+              addExample(
+                randomIntFromInterval(
+                  baseIdx,
+                  Math.min(text.length, baseIdx + chunkSize)
+                ),
+                "random"
+              );
+              const wordRegex = /(?<!\w)\w+/g;
+              const searchStart = randomIntFromInterval(
+                baseIdx,
+                Math.min(text.length, baseIdx + chunkSize)
+              );
+              const match = wordRegex.exec(text.substring(searchStart));
+              if (match !== null) {
+                addExample(searchStart + match.index, "beginningOfWord");
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

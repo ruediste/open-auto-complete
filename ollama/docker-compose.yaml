@@ -38,4 +38,5 @@ services:
     ports:
       - 8000:8000
     ipc: host
-    command: "vllm serve /models/test "
+    command: "vllm serve Qwen/Qwen2.5-Coder-0.5B --dtype auto --api-key token-abc123 --task generate"
+    # command: "vllm serve /models/test "

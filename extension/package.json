@@ -33,7 +33,9 @@
           "description": "Provider to access the LLM",
           "enum": [
             "mistral",
-            "ollama"
+            "ollama",
+            "openai",
+            "simple"
           ],
           "default": "mistral"
         },
@@ -79,6 +81,11 @@
           "type": "boolean",
           "description": "If true, the reason why a completion is stopped is logged",
           "default": false
+        },
+        "openAutoComplete.enabled": {
+          "type": "boolean",
+          "description": "If set to false, Open Auto Complete is disabled",
+          "default": true
         }
       }
     }
@@ -113,6 +120,7 @@
   "dependencies": {
     "ignore": "^7.0.0",
     "lru-cache": "^11.0.2",
-    "ollama": "^0.5.11"
+    "ollama": "^0.5.11",
+    "openai": "^4.77.0"
   }
 }

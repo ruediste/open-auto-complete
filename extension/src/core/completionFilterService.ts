@@ -27,12 +27,25 @@ async function* countWords(
   }
 }
 
-async function* forEachCharater(
+async function* forEachCharacter(
   chars: AsyncGenerator<string>,
   handler: (char: string) => void
 ) {
   for await (const char of chars) {
+    handler(char);
     yield char;
+  }
+}
+
+async function* stringToCharGenerator(
+  input: string,
+  token?: { isCancelRequested: boolean }
+): AsyncGenerator<string, void, unknown> {
+  for (const char of input) {
+    yield char;
+    if (token?.isCancelRequested) {
+      return;
+    }
   }
 }
 
@@ -49,6 +62,30 @@ export class CompletionFilterService {
       "Generation Stop",
       (c) => c.logCompletionStop
     );
+  }
+
+  async applyFilters(completionStr: string) {
+    let completionStopped = false;
+    const stopToken = {
+      isCancelRequested: false,
+    };
+
+    let completion = "";
+
+    for await (const char of this.filter(
+      stringToCharGenerator(completionStr, stopToken),
+      false,
+      () => {
+        stopToken.isCancelRequested = true;
+        completionStopped = true;
+      },
+      () => {}
+    )) {
+      if (!completionStopped) {
+        completion += char;
+      }
+    }
+    return completion;
   }
 
   filter(
@@ -100,8 +137,7 @@ export class CompletionFilterService {
       (count) => {}
     );
 
-    result = forEachCharater(result, (char) => {
-      console.log(char);
+    result = forEachCharacter(result, (char) => {
       if (char === "\n") {
         stopCompletion("line break");
       }

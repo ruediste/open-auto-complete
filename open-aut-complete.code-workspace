@@ -8,6 +8,9 @@
     },
     {
       "path": "fine-tune"
+    },
+    {
+      "path": "blog"
     }
   ],
   "settings": {

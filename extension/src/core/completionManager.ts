@@ -27,7 +27,7 @@ export interface CancellationToken {
   readonly cancelled: Promise<boolean>;
 }
 
-class CancellationTokenOwner implements CancellationToken {
+export class CancellationTokenOwner implements CancellationToken {
   private onCancellationRequestedOwner = new EventOwner<void>();
   isCancellationRequested = false;
   private cancelledPromise = new ProgrammaticPromise<boolean>();
@@ -91,6 +91,9 @@ export class CompletionManager implements vscode.InlineCompletionItemProvider {
   ): Promise<vscode.InlineCompletionItem[]> {
     const id = this.nextId++;
     const config = this.config.config;
+    if (!config.enabled) {
+      return [];
+    }
 
     this.log.info?.(
       `received request ${
@@ -237,9 +240,10 @@ Rules:
 
     // check if the filters consider the response complete
     if (bestCandidate !== undefined) {
-      const filteredCompletion = await this.applyFilters(
-        bestCandidate.completionStr
-      );
+      const filteredCompletion =
+        await this.completionFilterService.applyFilters(
+          bestCandidate.completionStr
+        );
 
       const generate =
         bestCandidate.generationRequired ||
@@ -271,7 +275,7 @@ Rules:
           return [];
         }
 
-        const completion = await this.applyFilters(
+        const completion = await this.completionFilterService.applyFilters(
           currentGeneration.availableResponse
         );
 
@@ -293,7 +297,7 @@ Rules:
       return [];
     }
 
-    const filteredResponse = await this.applyFilters(
+    const filteredResponse = await this.completionFilterService.applyFilters(
       currentResponse.availableResponse
     );
     this.log.info?.(
@@ -388,30 +392,6 @@ Rules:
     }
   }
 
-  private async applyFilters(completionStr: string) {
-    let completionStopped = false;
-    const stopToken = {
-      isCancelRequested: false,
-    };
-
-    let completion = "";
-
-    for await (const char of this.completionFilterService.filter(
-      stringToCharGenerator(completionStr, stopToken),
-      false,
-      () => {
-        stopToken.isCancelRequested = true;
-        completionStopped = true;
-      },
-      () => {}
-    )) {
-      if (!completionStopped) {
-        completion += char;
-      }
-    }
-    return completion;
-  }
-
   static findBestCandidate<
     T extends Pick<GenerationResponse, "matchPrefix" | "availableResponse">
   >(
@@ -479,18 +459,6 @@ Rules:
       completionStr: candidate.completionStr,
       generationRequired: candidate.generationRequired,
     };
-  }
-}
-
-async function* stringToCharGenerator(
-  input: string,
-  token?: { isCancelRequested: boolean }
-): AsyncGenerator<string, void, unknown> {
-  for (const char of input) {
-    yield char;
-    if (token?.isCancelRequested) {
-      return;
-    }
   }
 }
 

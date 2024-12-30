@@ -10,12 +10,14 @@ import {
 import { LlmClient } from "./core/llmClient";
 import { LogManager } from "./core/logger";
 import { DataExtractionService } from "./fineTune/DataExtractionService";
+import { PerformanceEvaluationService } from "./fineTune/PerformaceEvaluationService";
 
 function readConfiguration() {
   const vsCodeConfig = vscode.workspace.getConfiguration("openAutoComplete");
   const config: OpenAutoCompleteConfiguration = {
     apiBase: vsCodeConfig.get("apiBase")!,
     apiKey: vsCodeConfig.get("apiKey")!,
+    enabled: vsCodeConfig.get("openAutoComplete.enabled") ?? true,
     logCompletionManager: vsCodeConfig.get("log.completionManager") ?? false,
     logCompletionStop: vsCodeConfig.get("log.completionStop") ?? false,
     prefixLength: vsCodeConfig.get("prefixLength")!,
@@ -63,6 +65,14 @@ export function activate(context: vscode.ExtensionContext) {
 
   const dataExtractionService = new DataExtractionService(logChannel);
 
+  const performanceEvaluationService = new PerformanceEvaluationService(
+    config,
+    client,
+    completionFilterService,
+    logManager,
+    dataExtractionService
+  );
+
   context.subscriptions.push(manager);
 
   context.subscriptions.push(
@@ -101,7 +111,15 @@ export function activate(context: vscode.ExtensionContext) {
 
   // add command
   vscode.commands.registerCommand("open-auto-complete.fimDataSet", async () => {
-    await dataExtractionService.extractData();
+    // await dataExtractionService.extractAndSaveData();
+    vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        cancellable: true,
+      },
+      (progress, token) =>
+        performanceEvaluationService.evaluate(progress, token)
+    );
   });
 }
 

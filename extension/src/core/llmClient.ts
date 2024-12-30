@@ -1,4 +1,5 @@
 import { Ollama } from "ollama";
+import OpenAI from "openai";
 import { OutputChannel } from "vscode";
 import { AsyncGenerators } from "./asyncGenerators";
 import { CancellationToken } from "./completionManager";
@@ -138,6 +139,12 @@ ${prefix}<FIM>${suffix}
       case "ollama":
         result = this.getCompletionOllama(prefix, suffix, token);
         break;
+      case "openai":
+        result = this.getCompletionOpenAi(prefix, suffix, token);
+        break;
+      case "simple":
+        result = this.getCompletionSimple(prefix, suffix, token);
+        break;
       default:
         throw new Error(`Unknown provider: ${this.config}`);
     }
@@ -200,6 +207,73 @@ ${prefix}<FIM>${suffix}
       if (error.name === "AbortError") {
         // swallow
       }
+    }
+  }
+
+  async *getCompletionOpenAi(
+    prefix: string,
+    suffix: string,
+    token: CancellationToken
+  ): AsyncGenerator<string> {
+    const config = this.config.config;
+    const openai = new OpenAI({
+      baseURL: config.apiBase,
+      apiKey: config.apiKey,
+    });
+    const response = await openai.completions.create({
+      model: config.model,
+      prompt: prefix,
+      suffix,
+      stream: true,
+      max_tokens: 25,
+      temperature: 0,
+    });
+
+    try {
+      for await (const chunk of response) {
+        if (token.isCancellationRequested) {
+          return;
+        }
+        for (const char of chunk.choices[0].text) {
+          yield char;
+        }
+      }
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        // swallow
+      }
+    }
+  }
+
+  async *getCompletionSimple(
+    prefix: string,
+    suffix: string,
+    token: CancellationToken
+  ): AsyncGenerator<string> {
+    const config = this.config.config;
+
+    const response = await fetch(config.apiBase, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prefix,
+        suffix,
+      }),
+    });
+
+    if (response.status !== 200) {
+      throw new Error(
+        `Request Failed: ${response.status} ${
+          response.statusText
+        }\n${await response.text()}`
+      );
+    }
+
+    const completion = await response.text();
+    for (const char of completion) {
+      yield char;
     }
   }
 

@@ -1,7 +1,3 @@
-// This is a class  named Calculator which has a property "value"    initialized to 0.
-//  It also has two methods: "add" and "sub". The "add" method adds a given  value to the current value of  the calculator.
-// The "sub" method subtracts a given  value to the current value of  the calculator.
-// The methods
 class Calculator {
   value = 0;
 
