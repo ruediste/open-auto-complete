@@ -4,8 +4,21 @@ import {
   OpenAutoCompleteConfiguration,
 } from "./configuration";
 
+export interface LogManager {
+  get(
+    name: string,
+    predicate: (config: OpenAutoCompleteConfiguration) => boolean
+  ): Logger;
+}
+
 // The Api of the logger uses optional functions to short circuit disabled loggers.
-export class Logger {
+export interface Logger {
+  info: ((message: string) => void) | undefined;
+  warn: ((message: string) => void) | undefined;
+  error: ((message: string) => void) | undefined;
+}
+
+class ChannelLogger implements Logger {
   constructor(
     private name: string,
     private predicate: (config: OpenAutoCompleteConfiguration) => boolean,
@@ -40,7 +53,7 @@ export class Logger {
   }
 }
 
-export class LogManager {
+export class ChannelLogManager implements LogManager {
   constructor(
     private configContainer: ConfigContainer,
     private channel: LogOutputChannel
@@ -49,7 +62,24 @@ export class LogManager {
   get(
     name: string,
     predicate: (config: OpenAutoCompleteConfiguration) => boolean
-  ) {
-    return new Logger(name, predicate, this.configContainer, this.channel);
+  ): Logger {
+    return new ChannelLogger(
+      name,
+      predicate,
+      this.configContainer,
+      this.channel
+    );
+  }
+}
+
+class NopLogger implements Logger {
+  readonly warn = undefined;
+  readonly error = undefined;
+  readonly info = undefined;
+}
+
+export class NopLogManager implements LogManager {
+  get(): Logger {
+    return new NopLogger();
   }
 }

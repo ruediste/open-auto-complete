@@ -1,13 +1,17 @@
 import ignore, { Ignore } from "ignore";
 import * as vscode from "vscode";
+import { CompletionRequest } from "../core/llmClient";
 
 export type FimExampleCategory = "random" | "beginningOfWord";
-export interface FimExample {
-  category: FimExampleCategory;
-  prefix: string;
-  suffix: string;
+export type FimExample = Omit<CompletionRequest, "requestDescription"> & {
   completion: string;
-}
+  parameters: {
+    category: FimExampleCategory;
+    prefixSize: number;
+    suffixSize: number;
+    completionSize: number;
+  };
+};
 
 class IgnoreContext {
   entries: { path: string; ignore: Ignore }[] = [];
@@ -158,6 +162,7 @@ export class DataExtractionService {
         if (uri.path.endsWith(".ts") || uri.path.endsWith(".cs")) {
           this.channel.info?.(`Processing file :${uri.path}`);
           await this.extractExamples(
+            uri.fsPath,
             await new TextDecoder().decode(
               await vscode.workspace.fs.readFile(uri)
             ),
@@ -168,22 +173,31 @@ export class DataExtractionService {
     }
   }
 
-  private async extractExamples(text: string, examples: FimExample[]) {
+  private async extractExamples(
+    fileName: string,
+    text: string,
+    examples: FimExample[]
+  ) {
     const lines = text.split(/\r\n|\n/);
 
     // random
     {
-      const chunkSize = 400;
+      const chunkSize = 1000;
       for (let baseIdx = 0; baseIdx < text.length; baseIdx += chunkSize) {
-        for (const prefixSize of [100, 200, 400]) {
-          for (const suffixSize of [100, 200, 400]) {
-            for (const completionSize of [10, 40, 100, 200]) {
+        // for (const prefixSize of [100, 200, 400, 800]) {
+        //   for (const suffixSize of [10, 100, 200, 400, 800]) {
+        //     for (const completionSize of [10, 40, 100, 200, 400]) {
+        for (const prefixSize of [200]) {
+          for (const suffixSize of [20]) {
+            // for (const suffixSize of [10, 20]) {
+            for (const completionSize of [10, 40, 100, 200, 400]) {
               const addExample = (
                 split: number,
                 category: FimExampleCategory
-              ) => {
-                const example = {
-                  category: category,
+              ) =>
+                examples.push({
+                  language: "C#",
+                  fileName,
                   prefix: text.substring(
                     Math.max(0, split - prefixSize),
                     split
@@ -193,9 +207,13 @@ export class DataExtractionService {
                     split + completionSize + suffixSize
                   ),
                   completion: text.substring(split, split + completionSize),
-                };
-                examples.push(example);
-              };
+                  parameters: {
+                    category,
+                    prefixSize,
+                    suffixSize,
+                    completionSize,
+                  },
+                });
 
               addExample(
                 randomIntFromInterval(
@@ -204,14 +222,14 @@ export class DataExtractionService {
                 ),
                 "random"
               );
-              const wordRegex = /(?<!\w)\w+/g;
+              const wordRegex = /[^\w]\w+/g;
               const searchStart = randomIntFromInterval(
                 baseIdx,
                 Math.min(text.length, baseIdx + chunkSize)
               );
               const match = wordRegex.exec(text.substring(searchStart));
               if (match !== null) {
-                addExample(searchStart + match.index, "beginningOfWord");
+                addExample(searchStart + match.index + 1, "beginningOfWord");
               }
             }
           }

@@ -4,10 +4,8 @@ import { CancellationTokenOwner } from "../core/completionManager";
 import { ConfigContainer } from "../core/configuration";
 import { LlmClient } from "../core/llmClient";
 import { LogManager } from "../core/logger";
-import {
-  DataExtractionService,
-  FimExampleCategory,
-} from "./DataExtractionService";
+import { DataExtractionService, FimExample } from "./DataExtractionService";
+
 function countCommonStartChars(str1: string, str2: string) {
   let count = 0;
   const minLength = Math.min(str1.length, str2.length);
@@ -40,13 +38,10 @@ function shuffle(array: any[]) {
   }
 }
 
-interface EvaluationResult {
-  category: FimExampleCategory;
-  prefixSize: number;
-  suffixSize: number;
-  completionSize: number;
+type EvaluationResult = FimExample["parameters"] & {
   match: boolean;
-}
+  timeMs: number;
+};
 
 export class PerformanceEvaluationService {
   constructor(
@@ -64,48 +59,55 @@ export class PerformanceEvaluationService {
     vsToken: vscode.CancellationToken
   ) {
     const data = await this.dataExtractionService.extractData();
-    this.dataExtractionService.saveData(data);
-    const results: EvaluationResult[] = [];
-    let count = 0;
     const totalExampleCount = Math.min(
-      300,
+      100 * 1 * 1 * 5 * 2,
       data.map((x) => x.examples.length).reduce((a, b) => a + b, 0)
     );
+    let remainingCount = totalExampleCount;
+    console.log("Remaining count: " + remainingCount);
 
     for (const { folder, examples } of data) {
+      if (remainingCount <= 0) {
+        break;
+      }
       progress.report({ message: `Processing ${folder.name}` });
       // shuffle examples
       shuffle(examples);
-      for (const example of examples) {
-        if (count++ >= totalExampleCount) {
-          break;
-        }
-        progress.report({ increment: 100 / totalExampleCount });
-        const match = example.completion.match(/^\s*\w*[^\w]*/g);
-        const expected = match === null ? example.completion : match[0];
+
+      const results: EvaluationResult[] = [];
+      exampleLoop: for (const example of examples) {
+        const expected = PerformanceEvaluationService.getCompletion(
+          example.completion
+        );
 
         let attempt = 0;
         while (true) {
           if (vsToken.isCancellationRequested) {
             break;
           }
+          const startTime = Date.now();
           const token = new CancellationTokenOwner();
           const subscription = vsToken.onCancellationRequested(() =>
             token.cancel()
           );
+
           try {
             let chars = await this.llmClient.getCompletion(
-              "evaluate",
-              example.prefix,
-              example.suffix,
+              {
+                requestDescription: "evaluate",
+                language: example.language,
+                fileName: example.fileName,
+                prefix: example.prefix,
+                suffix: example.suffix,
+              },
               token
             );
             let actual = "";
-            for await (const chunk of chars) {
+            for await (const char of chars) {
               if (actual.length > expected.length) {
                 token.cancel();
               }
-              actual += chunk;
+              actual += char;
             }
 
             console.log(
@@ -114,15 +116,15 @@ export class PerformanceEvaluationService {
             const isMatch = actual.startsWith(expected);
 
             console.log(
-              `Expected: ${expected}\nActual: ${actual}\nMatch:${isMatch}`
+              `Params: ${JSON.stringify(
+                example.parameters
+              )}\nExpected: ${expected}\nActual  : ${actual}\nMatch:${isMatch}`
             );
 
             results.push({
-              category: example.category,
-              prefixSize: example.prefix.length,
-              suffixSize: example.suffix.length,
-              completionSize: example.completion.length,
+              ...example.parameters,
               match: isMatch,
+              timeMs: Date.now() - startTime,
             });
             break;
           } catch (e) {
@@ -133,24 +135,38 @@ export class PerformanceEvaluationService {
             }
           } finally {
             subscription.dispose();
+            progress.report({ increment: 100 / totalExampleCount });
+            remainingCount--;
+            if (remainingCount <= 0) {
+              break exampleLoop;
+            }
           }
         }
-
-        await vscode.workspace.fs.writeFile(
-          folder.uri.with({ path: folder.uri.path + "/results.csv" }),
-          new TextEncoder().encode(
-            `category, prefix, suffix, completion, match\n` +
-              results
-                .map(
-                  (d) =>
-                    `${d.category},${d.prefixSize},${d.suffixSize},${
-                      d.completionSize
-                    },${d.match ? 1 : 0}`
-                )
-                .join("\n")
-          )
-        );
       }
+      await vscode.workspace.fs.writeFile(
+        folder.uri.with({ path: folder.uri.path + "/results.json" }),
+        new TextEncoder().encode(JSON.stringify(results, undefined, 2))
+      );
+
+      await vscode.workspace.fs.writeFile(
+        folder.uri.with({ path: folder.uri.path + "/results.csv" }),
+        new TextEncoder().encode(
+          `category, prefix, suffix, completion, match\n` +
+            results
+              .map(
+                (d) =>
+                  `${d.category},${d.prefixSize},${d.suffixSize},${
+                    d.completionSize
+                  },${d.match ? 1 : 0}`
+              )
+              .join("\n")
+        )
+      );
     }
+  }
+
+  static getCompletion(generated: string) {
+    const match = generated.match(/^\s*\w*[^\w]*/g);
+    return match === null ? generated : match[0];
   }
 }

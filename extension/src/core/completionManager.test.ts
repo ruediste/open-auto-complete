@@ -2,18 +2,12 @@ import { CompletionManager } from "./completionManager";
 
 describe("findBestCandidate", () => {
   const existingCompletionA = {
-    file: "foo.ts",
-    offset: 5,
     matchPrefix: "abc",
     availableResponse: "defg",
-    completed: true,
   };
   const existingCompletionB = {
-    file: "foo.ts",
-    offset: 6,
     matchPrefix: "abcd",
-    availableResponse: "EFG",
-    completed: true,
+    availableResponse: "EFGH",
   };
 
   it("no existing completions", () => {
@@ -24,7 +18,7 @@ describe("findBestCandidate", () => {
     expect(
       CompletionManager.findBestCandidate("ab", [existingCompletionA])
     ).toEqual({
-      perfectMatch: false,
+      generationRequired: true,
       completionStr: "cdefg",
       completion: existingCompletionA,
     });
@@ -34,17 +28,17 @@ describe("findBestCandidate", () => {
     expect(
       CompletionManager.findBestCandidate("abcd", [existingCompletionA])
     ).toEqual({
-      perfectMatch: false,
+      generationRequired: false,
       completionStr: "efg",
       completion: existingCompletionA,
     });
   });
 
-  it("find perfect match", () => {
+  it("find no negative cursor change", () => {
     expect(
       CompletionManager.findBestCandidate("abc", [existingCompletionA])
     ).toEqual({
-      perfectMatch: true,
+      generationRequired: false,
       completionStr: "defg",
       completion: existingCompletionA,
     });
@@ -57,21 +51,9 @@ describe("findBestCandidate", () => {
         existingCompletionB,
       ])
     ).toEqual({
-      perfectMatch: false,
+      generationRequired: true,
       completionStr: "cdefg",
       completion: existingCompletionA,
-    });
-  });
-  it("prefer perfect match", () => {
-    expect(
-      CompletionManager.findBestCandidate("ab", [
-        existingCompletionA,
-        existingCompletionB,
-      ])
-    ).toEqual({
-      perfectMatch: true,
-      completionStr: "cdEFG",
-      completion: existingCompletionB,
     });
   });
 });

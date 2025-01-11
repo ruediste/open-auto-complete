@@ -186,9 +186,13 @@ Rules:
         completion: currentResponse,
         factory: async () => {
           let chars = await this.llmClient.getCompletion(
-            `Completion ${id}`,
-            prefix,
-            suffix,
+            {
+              requestDescription: `Completion ${id}`,
+              language: "C#",
+              fileName: document.fileName,
+              prefix,
+              suffix,
+            },
             currentResponse.token
           );
           chars = this.completionFilterService.filter(

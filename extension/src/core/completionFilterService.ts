@@ -8,19 +8,28 @@ async function* countWords(
   let inWord = false;
   let count = 0;
   let stopped = false;
+  let firstChar = true;
   const nonWordChars = new Set<string>([..." \t\r\n()[]{}'\"`+-*/~!%^&|;:.,"]);
   for await (const char of chars) {
     if (nonWordChars.has(char)) {
+      if (firstChar) {
+        inWord = false;
+      }
       if (inWord) {
         inWord = false;
         endOfWord(count, () => (stopped = true), stopped);
       }
     } else {
+      if (firstChar) {
+        inWord = true;
+        count = 1;
+      }
       if (!inWord) {
         inWord = true;
         startOfWord(++count, () => (stopped = true), stopped);
       }
     }
+    firstChar = false;
     if (!stopped) {
       yield char;
     }
@@ -127,9 +136,7 @@ export class CompletionFilterService {
     let result = countWords(
       chars,
       (count) => {
-        if (count > 3) {
-          stopCompletion("word count");
-        }
+        stopCompletion("word count");
         if (count > 9) {
           stopGeneration("word count");
         }
@@ -137,10 +144,12 @@ export class CompletionFilterService {
       (count) => {}
     );
 
+    let firstChar = true;
     result = forEachCharacter(result, (char) => {
-      if (char === "\n") {
+      if (!firstChar && char === "\n") {
         stopCompletion("line break");
       }
+      firstChar = false;
     });
     return result;
   }

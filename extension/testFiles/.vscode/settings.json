@@ -4,8 +4,12 @@
   // "openAutoComplete.provider": "ollama",
   // "openAutoComplete.apiBase": "http://localhost:11434/",
 
-  "openAutoComplete.provider": "simple",
-  "openAutoComplete.apiBase": "http://localhost:4444",
+  // "openAutoComplete.provider": "simple",
+  // "openAutoComplete.apiBase": "http://localhost:4444",
+
+  "openAutoComplete.provider": "openai",
+  "openAutoComplete.apiBase": "http://localhost:8000/v1",
+  "openAutoComplete.model": "coder",
 
   // "openAutoComplete.model": "opencoder:1.5b",
   // "openAutoComplete.model": "starcoder2:3b",

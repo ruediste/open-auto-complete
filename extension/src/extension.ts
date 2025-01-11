@@ -8,9 +8,9 @@ import {
   OpenAutoCompleteConfiguration,
 } from "./core/configuration";
 import { LlmClient } from "./core/llmClient";
-import { LogManager } from "./core/logger";
+import { ChannelLogManager } from "./core/logger";
 import { DataExtractionService } from "./fineTune/DataExtractionService";
-import { PerformanceEvaluationService } from "./fineTune/PerformaceEvaluationService";
+import { PerformanceEvaluationService } from "./fineTune/PerformanceEvaluationService";
 
 function readConfiguration() {
   const vsCodeConfig = vscode.workspace.getConfiguration("openAutoComplete");
@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
   config.config = readConfiguration();
 
-  const logManager = new LogManager(config, logChannel);
+  const logManager = new ChannelLogManager(config, logChannel);
 
   const client = new LlmClient(config, llmChannel);
   const completionFilterService = new CompletionFilterService(logManager);

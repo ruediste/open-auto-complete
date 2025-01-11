@@ -110,6 +110,14 @@ interface MistralFimRequest {
   min_tokens?: number;
 }
 
+export interface CompletionRequest {
+  requestDescription: string;
+  language: "C#" | "TypeScript" | "HTML";
+  fileName: string;
+  prefix: string;
+  suffix: string;
+}
+
 export class LlmClient {
   constructor(
     private config: ConfigContainer,
@@ -117,15 +125,13 @@ export class LlmClient {
   ) {}
 
   async getCompletion(
-    requestDescription: string,
-    prefix: string,
-    suffix: string,
+    request: CompletionRequest,
     token: CancellationToken
   ): Promise<AsyncGenerator<string>> {
     this.channel.append(
       `\n=========================================
-Sending ${requestDescription}
-${prefix}<FIM>${suffix}
+Sending ${request.requestDescription} ${request.language} ${request.fileName}
+${request.prefix}<FIM>${request.suffix}
 ===
 `
     );
@@ -134,16 +140,16 @@ ${prefix}<FIM>${suffix}
     let result: AsyncGenerator<string>;
     switch (this.config.config.provider) {
       case "mistral":
-        result = await this.getCompletionMistral(prefix, suffix, token);
+        result = await this.getCompletionMistral(request, token);
         break;
       case "ollama":
-        result = this.getCompletionOllama(prefix, suffix, token);
+        result = this.getCompletionOllama(request, token);
         break;
       case "openai":
-        result = this.getCompletionOpenAi(prefix, suffix, token);
+        result = this.getCompletionOpenAi(request, token);
         break;
       case "simple":
-        result = this.getCompletionSimple(prefix, suffix, token);
+        result = this.getCompletionSimple(request, token);
         break;
       default:
         throw new Error(`Unknown provider: ${this.config}`);
@@ -170,16 +176,15 @@ ${prefix}<FIM>${suffix}
   }
 
   async *getCompletionOllama(
-    prefix: string,
-    suffix: string,
+    request: CompletionRequest,
     token: CancellationToken
   ): AsyncGenerator<string> {
     const config = this.config.config;
     const ollama = new Ollama({ host: config.apiBase });
     const response = await ollama.generate({
       model: config.model,
-      prompt: prefix,
-      suffix,
+      prompt: request.prefix,
+      suffix: request.suffix,
       stream: true,
       options: {
         stop: ["<|fim_pad|>", "<|file_sep|>", "<|fim_prefix|>"],
@@ -211,8 +216,7 @@ ${prefix}<FIM>${suffix}
   }
 
   async *getCompletionOpenAi(
-    prefix: string,
-    suffix: string,
+    request: CompletionRequest,
     token: CancellationToken
   ): AsyncGenerator<string> {
     const config = this.config.config;
@@ -222,8 +226,25 @@ ${prefix}<FIM>${suffix}
     });
     const response = await openai.completions.create({
       model: config.model,
-      prompt: prefix,
-      suffix,
+      prompt: [
+        { text: "<|fim_prefix|>", split_special_tokens: false },
+        {
+          text:
+            "+++" +
+            request.language +
+            " " +
+            request.fileName.split("/").slice(-5).join("/") +
+            "\n" +
+            request.prefix,
+          split_special_tokens: true,
+        },
+        { text: "<|fim_suffix|>", split_special_tokens: false },
+        { text: request.suffix, split_special_tokens: true },
+        { text: "<|fim_middle|>", split_special_tokens: false },
+      ] as {
+        text: string;
+        split_special_tokens: boolean;
+      }[] as any,
       stream: true,
       max_tokens: 25,
       temperature: 0,
@@ -246,8 +267,7 @@ ${prefix}<FIM>${suffix}
   }
 
   async *getCompletionSimple(
-    prefix: string,
-    suffix: string,
+    request: CompletionRequest,
     token: CancellationToken
   ): AsyncGenerator<string> {
     const config = this.config.config;
@@ -258,8 +278,8 @@ ${prefix}<FIM>${suffix}
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        prefix,
-        suffix,
+        prefix: request.prefix,
+        suffix: request.suffix,
       }),
     });
 
@@ -278,8 +298,7 @@ ${prefix}<FIM>${suffix}
   }
 
   async getCompletionMistral(
-    prefix: string,
-    suffix: string,
+    request: CompletionRequest,
     token: CancellationToken
   ): Promise<AsyncGenerator<string>> {
     const config = this.config.config;
@@ -297,8 +316,8 @@ ${prefix}<FIM>${suffix}
       body: JSON.stringify({
         stream: true,
         model: "codestral-latest",
-        prompt: prefix,
-        suffix,
+        prompt: request.prefix,
+        suffix: request.suffix,
         max_tokens: 64,
       } as MistralFimRequest),
     });
