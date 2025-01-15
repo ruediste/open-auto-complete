@@ -76,7 +76,7 @@ export class PerformanceEvaluationService {
 
       const results: EvaluationResult[] = [];
       exampleLoop: for (const example of examples) {
-        const expected = PerformanceEvaluationService.getCompletion(
+        const expected = PerformanceEvaluationService.getFirstWord(
           example.completion
         );
 
@@ -165,7 +165,7 @@ export class PerformanceEvaluationService {
     }
   }
 
-  static getCompletion(generated: string) {
+  static getFirstWord(generated: string) {
     const match = generated.match(/^\s*\w*[^\w]*/g);
     return match === null ? generated : match[0];
   }

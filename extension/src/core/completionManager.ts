@@ -188,7 +188,7 @@ Rules:
           let chars = await this.llmClient.getCompletion(
             {
               requestDescription: `Completion ${id}`,
-              language: "C#",
+              language: "cs",
               fileName: document.fileName,
               prefix,
               suffix,

@@ -8,5 +8,6 @@ describe("completionFilter", () => {
     expect(await service.applyFilters(".foo(bar")).toBe(".");
     expect(await service.applyFilters("foo(bar")).toBe("foo(");
     expect(await service.applyFilters("foo\nconsole")).toBe("foo");
+    expect(await service.applyFilters(");\nconsole")).toBe(");");
   });
 });

@@ -117,8 +117,10 @@ export function activate(context: vscode.ExtensionContext) {
         location: vscode.ProgressLocation.Notification,
         cancellable: true,
       },
-      (progress, token) =>
-        performanceEvaluationService.evaluate(progress, token)
+      async (progress, token) => {
+        // await performanceEvaluationService.evaluate(progress, token);
+        dataExtractionService.extractAndSaveData();
+      }
     );
   });
 }

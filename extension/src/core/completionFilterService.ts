@@ -146,7 +146,7 @@ export class CompletionFilterService {
 
     let firstChar = true;
     result = forEachCharacter(result, (char) => {
-      if (!firstChar && char === "\n") {
+      if (char === "\n") {
         stopCompletion("line break");
       }
       firstChar = false;

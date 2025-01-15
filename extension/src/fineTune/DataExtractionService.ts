@@ -1,10 +1,12 @@
 import ignore, { Ignore } from "ignore";
 import * as vscode from "vscode";
 import { CompletionRequest } from "../core/llmClient";
+import { PerformanceEvaluationService } from "./PerformanceEvaluationService";
 
 export type FimExampleCategory = "random" | "beginningOfWord";
 export type FimExample = Omit<CompletionRequest, "requestDescription"> & {
   completion: string;
+  expected: string;
   parameters: {
     category: FimExampleCategory;
     prefixSize: number;
@@ -117,7 +119,7 @@ export class DataExtractionService {
   ) {
     for (const { folder, examples } of data) {
       await vscode.workspace.fs.writeFile(
-        folder.uri.with({ path: folder.uri.path + "/training.json" }),
+        folder.uri.with({ path: folder.uri.path + "/data.json" }),
         new TextEncoder().encode(JSON.stringify(examples, undefined, 2))
       );
     }
@@ -178,9 +180,10 @@ export class DataExtractionService {
     text: string,
     examples: FimExample[]
   ) {
-    const lines = text.split(/\r\n|\n/);
+    if (!fileName.endsWith(".cs")) {
+      return;
+    }
 
-    // random
     {
       const chunkSize = 1000;
       for (let baseIdx = 0; baseIdx < text.length; baseIdx += chunkSize) {
@@ -194,9 +197,13 @@ export class DataExtractionService {
               const addExample = (
                 split: number,
                 category: FimExampleCategory
-              ) =>
-                examples.push({
-                  language: "C#",
+              ) => {
+                const completion = text.substring(
+                  split,
+                  split + completionSize
+                );
+                return examples.push({
+                  language: "cs",
                   fileName,
                   prefix: text.substring(
                     Math.max(0, split - prefixSize),
@@ -206,7 +213,9 @@ export class DataExtractionService {
                     split + completionSize,
                     split + completionSize + suffixSize
                   ),
-                  completion: text.substring(split, split + completionSize),
+                  completion,
+                  expected:
+                    PerformanceEvaluationService.getFirstWord(completion),
                   parameters: {
                     category,
                     prefixSize,
@@ -214,6 +223,7 @@ export class DataExtractionService {
                     completionSize,
                   },
                 });
+              };
 
               addExample(
                 randomIntFromInterval(

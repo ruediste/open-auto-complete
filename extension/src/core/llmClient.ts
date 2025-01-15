@@ -112,7 +112,7 @@ interface MistralFimRequest {
 
 export interface CompletionRequest {
   requestDescription: string;
-  language: "C#" | "TypeScript" | "HTML";
+  language: "cs" | "ts" | "html";
   fileName: string;
   prefix: string;
   suffix: string;
